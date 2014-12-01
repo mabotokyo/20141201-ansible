@@ -1,0 +1,7 @@
+[conoben-lb]
+157.7.*.* private_address=192.168.0.11
+
+[conoben-web]
+157.7.*.* private_address=192.168.0.12
+157.7.*.* private_address=192.168.0.13
+

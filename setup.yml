@@ -1,0 +1,31 @@
+#
+# 「構成管理ツールAnsibleを使ってみよう」
+# サンプルスクリプト(1)
+# 
+# https://www.conoha.jp/blog/tech/4004.html
+#
+
+- hosts: conoha-vps
+  remote_user: root
+  tasks:
+  - name: install nginx
+    yum: name=nginx state=latest
+    notify: restart nginx
+
+  - name: allow port 80
+    lineinfile: dest=/etc/sysconfig/iptables line="-A INPUT -m state --state NEW -m tcp -p tcp --dport 80 -j ACCEPT" insertafter="^:OUTPUT " 
+    notify: restart iptables
+
+  # - name: install mysql
+  #   yum: name=mysql-server state=latest
+  #   notify: restart mysql
+    
+  handlers:
+  - name: restart nginx
+    service: name=nginx state=restarted
+    
+  - name: restart iptables
+    service: name=iptables state=restarted
+
+  # - name: restart mysql
+  #   service: name=mysqld state=restarted

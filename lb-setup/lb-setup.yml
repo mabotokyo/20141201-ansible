@@ -1,0 +1,102 @@
+#
+# 「構成管理ツールAnsibleを使ってみよう」
+# サンプルスクリプト(2)
+# 
+# https://www.conoha.jp/blog/tech/4004.html
+#
+- hosts: conoben-lb
+  remote_user: root
+  tasks:
+    # ローカルネットワークの設定
+    # force=noはファイルが存在しない場合のみ上書きするオプション
+    - name: assign network interface for private network.
+      copy: src=ifcfg-tpl dest=/etc/sysconfig/network-scripts/ifcfg-eth2 force=no
+      register: result
+      
+    - name: assign IP address
+      lineinfile: dest=/etc/sysconfig/network-scripts/ifcfg-eth2 line="IPADDR={{ private_address }}"
+      when: result|changed
+
+    - name: add netmask
+      lineinfile: dest=/etc/sysconfig/network-scripts/ifcfg-eth2 line="NETMASK=255.255.255.0"
+      when: result|changed
+      notify: restart network service
+
+
+    # httpのポートを開放する
+    - name: open port 80
+      lineinfile: dest=/etc/sysconfig/iptables line="-A INPUT -m state --state NEW -m tcp -p tcp --dport 80 -j ACCEPT" insertafter="^:OUTPUT " 
+      notify: restart iptables
+
+      
+    # haproxyを設定する
+    - name: install haproxy
+      yum: name=haproxy
+      
+    - name: build haproxy.cfg
+      # copy: src=haproxy.cfg dest=/etc/haproxy/haproxy.cfg
+      template: src=haproxy.cfg.j2 dest=/etc/haproxy/haproxy.cfg
+      notify: restart haproxy
+
+  handlers:       
+    - name: restart network service
+      service: name=network state=restarted
+
+    - name: restart iptables
+      service: name=iptables state=restarted
+
+    - name: restart haproxy
+      service: name=haproxy state=restarted
+  
+- hosts: conoben-web
+  vars: 
+    index_file: /usr/share/nginx/html/index.html
+  remote_user: root
+  tasks:
+
+    # httpのポートを開放して、iptablesをリスタートする
+    - name: open port 80
+      lineinfile: dest=/etc/sysconfig/iptables line="-A INPUT -m state --state NEW -m tcp -p tcp --dport 80 -j ACCEPT" insertafter="^:OUTPUT " 
+      notify: restart iptables
+
+    # Webサーバ(apache)をインストールする
+    - name: yum install httpd
+      yum: name=httpd enablerepo=epel
+
+    # apacheが起動していることを確認
+    - name: ensure apache is running
+      service: name=httpd state=started
+
+    # index.php をドキュメントルートにコピーして、元からあるindex.htmlを削除
+    - name: copy index.php to /var/www/html
+      copy: src=index.php dest=/var/www/html/index.php force=yes
+
+    - name: remove index.html from /var/www/html
+      file: path=/var/www/html/index.html state=absent
+
+    # ローカルネットワークの設定
+    # force=noはファイルが存在しない場合のみ上書きするオプション
+    - name: assign network interface for private network.
+      copy: src=ifcfg-tpl dest=/etc/sysconfig/network-scripts/ifcfg-eth2 force=no
+      register: result
+      
+    - name: assign IP address
+      lineinfile: dest=/etc/sysconfig/network-scripts/ifcfg-eth2 line="IPADDR={{ private_address }}"
+      when: result|changed
+
+    - name: add netmask
+      lineinfile: dest=/etc/sysconfig/network-scripts/ifcfg-eth2 line="NETMASK=255.255.255.0"
+      when: result|changed
+      notify: restart network service
+
+  handlers:       
+    - name: restart network service
+      service: name=network state=restarted
+
+    - name: restart iptables
+      service: name=iptables state=restarted
+
+    - name: restart httpd
+      service: name=httpd state=restarted
+  
+        
